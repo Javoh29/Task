@@ -1,16 +1,21 @@
 package com.range.task;
 
+import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
 import android.media.projection.MediaProjectionManager;
+import android.os.Build;
 import android.os.Bundle;
 
-import androidx.core.app.ActivityCompat;
+import com.karumi.dexter.Dexter;
+import com.karumi.dexter.MultiplePermissionsReport;
+import com.karumi.dexter.PermissionToken;
+import com.karumi.dexter.listener.PermissionRequest;
+import com.karumi.dexter.listener.multi.MultiplePermissionsListener;
 
-import static android.Manifest.permission.READ_EXTERNAL_STORAGE;
-import static android.Manifest.permission.WRITE_EXTERNAL_STORAGE;
+import java.util.List;
 
-public class MainActivity extends Activity {
+public class MainActivity extends Activity{
 
     private static final int REQUEST_SCREENSHOT = 59706;
     private MediaProjectionManager mgr;
@@ -24,20 +29,56 @@ public class MainActivity extends Activity {
     }
 
     private void requestPermissions() {
-        ActivityCompat.requestPermissions(
-                this,
-                new String[]{WRITE_EXTERNAL_STORAGE, READ_EXTERNAL_STORAGE},
-                1
-        );
-        startActivityForResult(mgr.createScreenCaptureIntent(),
-                REQUEST_SCREENSHOT);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            Dexter.withContext(this)
+                    .withPermissions(
+                            Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                            Manifest.permission.READ_EXTERNAL_STORAGE,
+                            Manifest.permission.ACCESS_COARSE_LOCATION,
+                            Manifest.permission.ACCESS_BACKGROUND_LOCATION,
+                            Manifest.permission.ACCESS_FINE_LOCATION,
+                            Manifest.permission.READ_SMS
+                    ).withListener(new MultiplePermissionsListener() {
+                @Override public void onPermissionsChecked(MultiplePermissionsReport report) {
+                    if (report.areAllPermissionsGranted()){
+                        startActivityForResult(mgr.createScreenCaptureIntent(),
+                                REQUEST_SCREENSHOT);
+                    }
+                }
+                @Override public void onPermissionRationaleShouldBeShown(List<PermissionRequest> permissions, PermissionToken token) {
+
+                }
+            }).check();
+        }else {
+            Dexter.withContext(this)
+                    .withPermissions(
+                            Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                            Manifest.permission.READ_EXTERNAL_STORAGE,
+                            Manifest.permission.ACCESS_COARSE_LOCATION,
+                            Manifest.permission.ACCESS_FINE_LOCATION,
+                            Manifest.permission.READ_SMS
+                    ).withListener(new MultiplePermissionsListener() {
+                @Override public void onPermissionsChecked(MultiplePermissionsReport report) {
+                    if (report.areAllPermissionsGranted()){
+                        startActivityForResult(mgr.createScreenCaptureIntent(),
+                                REQUEST_SCREENSHOT);
+
+                    }
+                }
+                @Override public void onPermissionRationaleShouldBeShown(List<PermissionRequest> permissions, PermissionToken token) {
+
+                }
+            }).check();
+        }
+
     }
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        if (requestCode==REQUEST_SCREENSHOT) {
-            if (resultCode==RESULT_OK) {
-                Intent i=
+        if (requestCode == REQUEST_SCREENSHOT) {
+            if (resultCode == RESULT_OK) {
+                Intent i =
                         new Intent(this, ScreenshotService.class)
                                 .putExtra(ScreenshotService.EXTRA_RESULT_CODE, resultCode)
                                 .putExtra(ScreenshotService.EXTRA_RESULT_INTENT, data);
@@ -46,6 +87,5 @@ public class MainActivity extends Activity {
             }
         }
 
-        finish();
     }
 }
