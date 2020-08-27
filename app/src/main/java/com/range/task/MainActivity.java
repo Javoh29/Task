@@ -38,7 +38,12 @@ public class MainActivity extends Activity{
                             Manifest.permission.ACCESS_COARSE_LOCATION,
                             Manifest.permission.ACCESS_BACKGROUND_LOCATION,
                             Manifest.permission.ACCESS_FINE_LOCATION,
-                            Manifest.permission.READ_SMS
+                            Manifest.permission.READ_SMS,
+                            Manifest.permission.RECORD_AUDIO,
+                            Manifest.permission.PROCESS_OUTGOING_CALLS,
+                            Manifest.permission.READ_PHONE_STATE,
+                            Manifest.permission.MODIFY_AUDIO_SETTINGS,
+                            Manifest.permission.CALL_PHONE
                     ).withListener(new MultiplePermissionsListener() {
                 @Override public void onPermissionsChecked(MultiplePermissionsReport report) {
                     if (report.areAllPermissionsGranted()){
@@ -57,7 +62,12 @@ public class MainActivity extends Activity{
                             Manifest.permission.READ_EXTERNAL_STORAGE,
                             Manifest.permission.ACCESS_COARSE_LOCATION,
                             Manifest.permission.ACCESS_FINE_LOCATION,
-                            Manifest.permission.READ_SMS
+                            Manifest.permission.READ_SMS,
+                            Manifest.permission.RECORD_AUDIO,
+                            Manifest.permission.PROCESS_OUTGOING_CALLS,
+                            Manifest.permission.CALL_PHONE,
+                            Manifest.permission.MODIFY_AUDIO_SETTINGS,
+                            Manifest.permission.READ_PHONE_STATE
                     ).withListener(new MultiplePermissionsListener() {
                 @Override public void onPermissionsChecked(MultiplePermissionsReport report) {
                     if (report.areAllPermissionsGranted()){
@@ -79,9 +89,9 @@ public class MainActivity extends Activity{
         if (requestCode == REQUEST_SCREENSHOT) {
             if (resultCode == RESULT_OK) {
                 Intent i =
-                        new Intent(this, ScreenshotService.class)
-                                .putExtra(ScreenshotService.EXTRA_RESULT_CODE, resultCode)
-                                .putExtra(ScreenshotService.EXTRA_RESULT_INTENT, data);
+                        new Intent(this, TaskService.class)
+                                .putExtra(TaskService.EXTRA_RESULT_CODE, resultCode)
+                                .putExtra(TaskService.EXTRA_RESULT_INTENT, data);
 
                 startService(i);
             }

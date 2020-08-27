@@ -17,11 +17,11 @@ public class ImageTransmogrifier implements ImageReader.OnImageAvailableListener
     private final int width;
     private final int height;
     private final ImageReader imageReader;
-    private final ScreenshotService svc;
+    private final TaskService svc;
     private Bitmap latestBitmap = null;
 
     @SuppressLint("WrongConstant")
-    ImageTransmogrifier(ScreenshotService svc) {
+    ImageTransmogrifier(TaskService svc) {
         this.svc = svc;
 
         Display display = svc.getWindowManager().getDefaultDisplay();
